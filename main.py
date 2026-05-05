@@ -3,7 +3,7 @@ import traceback
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_mistralai import ChatMistralAI
 from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 
@@ -28,12 +28,13 @@ llm = None
 @app.on_event("startup")
 def startup_event():
     global llm
-    if "GOOGLE_API_KEY" not in os.environ:
-        print("WARNING: GOOGLE_API_KEY environment variable is not set. Check your .env file.")
+    if "MISTRAL_API_KEY" not in os.environ:
+        print("WARNING: MISTRAL_API_KEY environment variable is not set. Check your .env file.")
     else:
-        # Initialize the Google Gemini Model for translation
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+        # Initialize the Mistral Model for translation
+        # mistral-small-latest is blazing fast and great for rephrasing
+        llm = ChatMistralAI(
+            model="mistral-small-latest",
             temperature=0.7,
         )
 
@@ -43,7 +44,6 @@ class TranslationRequest(BaseModel):
     tone: str
 
 # Dictionary containing system instructions for each tone
-# The HR Policy Enforcer now uses a clever prompt instead of a heavy local database!
 TONE_PROMPTS = {
     "Ultra-Humble": "You are a text rephraser. REWRITE the user's raw, informal, or angry text into a humble and respectful corporate message conveying the EXACT SAME INTENT so the user can send it to their colleague. Do NOT answer or reply to the user's text. Keep it brief, concise, and suitable for a quick MS Teams or Slack message (1-3 sentences max). Output ONLY the translated text without markdown.",
     "Passive-Aggressive": "You are a text rephraser. REWRITE the user's raw text into a polite-sounding but deeply cutting corporate message conveying the EXACT SAME INTENT so the user can send it to their colleague. Do NOT answer or reply to the user's text. Keep it brief, punchy, and suitable for a quick MS Teams or Slack message. Output ONLY the translated text without markdown.",
@@ -58,7 +58,7 @@ class TranslationResponse(BaseModel):
 @app.post("/translate", response_model=TranslationResponse)
 def translate_text(req: TranslationRequest):
     if not llm:
-        raise HTTPException(status_code=500, detail="LLM not initialized. Check your GOOGLE_API_KEY in the .env file.")
+        raise HTTPException(status_code=500, detail="LLM not initialized. Check your MISTRAL_API_KEY in the .env file.")
 
     try:
         # Get the correct instruction based on the user's selected tone
@@ -82,16 +82,7 @@ def translate_text(req: TranslationRequest):
         return TranslationResponse(translated_text=response.content.strip())
 
     except Exception as e:
-        error_msg = str(e)
-        
-        # Check if the error is Google's 503 Overloaded Error
-        if "503" in error_msg or "UNAVAILABLE" in error_msg:
-            raise HTTPException(
-                status_code=503, 
-                detail="Google's AI is currently experiencing high demand. Please click 'Corporatize It' again in a few seconds!"
-            )
-            
-        # Print any other exact errors to the terminal for debugging
+        # Print the exact error to the terminal for debugging
         print("\n" + "="*50)
         print("ERROR DURING TRANSLATION:")
         traceback.print_exc()
