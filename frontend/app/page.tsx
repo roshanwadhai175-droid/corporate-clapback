@@ -49,7 +49,7 @@ export default function App() {
             const data = await response.json();
             setOutputText(data.translated_text);
         } catch (err) {
-            setError(err.message || 'An error occurred. Make sure your Python backend is running.');
+            // setError(err.message || 'An error occurred. Make sure your Python backend is running.');
         } finally {
             setLoading(false);
         }
